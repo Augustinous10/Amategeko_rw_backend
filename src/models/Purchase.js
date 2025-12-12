@@ -1,57 +1,34 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
 
-const Purchase = sequelize.define('Purchase', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
+const purchaseSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   },
-  userId: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    field: 'user_id',
-    references: {
-      model: 'users',
-      key: 'id'
-    }
+  product: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'DigitalProduct',
+    required: true
   },
-  productId: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    field: 'product_id',
-    references: {
-      model: 'digital_products',
-      key: 'id'
-    }
-  },
-  paymentId: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    field: 'payment_id',
-    references: {
-      model: 'payments',
-      key: 'id'
-    }
+  payment: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Payment'
   },
   purchaseDate: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW,
-    field: 'purchase_date'
+    type: Date,
+    default: Date.now
   },
   downloadCount: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0,
-    field: 'download_count'
+    type: Number,
+    default: 0
   },
   lastDownloadAt: {
-    type: DataTypes.DATE,
-    allowNull: true,
-    field: 'last_download_at'
+    type: Date
   }
-}, {
-  tableName: 'purchases',
-  timestamps: false
 });
 
-module.exports = Purchase;
+// Index for user purchases
+purchaseSchema.index({ user: 1, product: 1 });
+
+module.exports = mongoose.model('Purchase', purchaseSchema);

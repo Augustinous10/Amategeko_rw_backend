@@ -1,90 +1,230 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
-const { PAYMENT_TYPES, PAYMENT_STATUS, PAYMENT_METHODS } = require('../utils/constants');
+const mongoose = require('mongoose');
+const { PAYMENT_STATUS, PAYMENT_TYPES, PAYMENT_METHODS } = require('../utils/constants');
 
-const Payment = sequelize.define('Payment', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
+const paymentSchema = new mongoose.Schema({
+  // User reference
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   },
-  userId: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    field: 'user_id',
-    references: {
-      model: 'users',
-      key: 'id'
-    }
-  },
+  
+  // Payment type (subscription or product)
   paymentType: {
-    type: DataTypes.STRING(50),
-    allowNull: false,
-    field: 'payment_type',
-    validate: {
-      isIn: [[PAYMENT_TYPES.SUBSCRIPTION, PAYMENT_TYPES.PRODUCT]]
-    }
+    type: String,
+    enum: Object.values(PAYMENT_TYPES),
+    required: true
   },
+  
+  // Reference ID (subscription ID or product ID)
   referenceId: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    field: 'reference_id',
-    comment: 'subscription_id or product_id'
+    type: mongoose.Schema.Types.ObjectId,
+    required: false // Made optional for general payments
   },
+  
+  // Amount and currency
   amount: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false
+    type: Number,
+    required: true,
+    min: 0
   },
+  
   currency: {
-    type: DataTypes.STRING(3),
-    defaultValue: 'RWF'
+    type: String,
+    default: 'RWF',
+    enum: ['RWF']
   },
+  
+  // Payment method and phone
   paymentMethod: {
-    type: DataTypes.STRING(50),
-    allowNull: true,
-    field: 'payment_method',
-    validate: {
-      isIn: [[
-        PAYMENT_METHODS.MTN_MOMO,
-        PAYMENT_METHODS.AIRTEL_MONEY,
-        PAYMENT_METHODS.SPENN
-      ]]
-    }
+    type: String,
+    required: true,
+    enum: Object.values(PAYMENT_METHODS)
   },
+  
   phoneNumber: {
-    type: DataTypes.STRING(20),
-    allowNull: true,
-    field: 'phone_number'
+    type: String,
+    required: true,
+    match: /^07[0-9]{8}$/ // Rwanda format: 07XXXXXXXX
   },
-  transactionId: {
-    type: DataTypes.STRING(255),
-    allowNull: true,
-    unique: true,
-    field: 'transaction_id',
-    comment: 'ITECPay transaction ID'
-  },
+  
+  // Payment status
   status: {
-    type: DataTypes.STRING(20),
-    defaultValue: PAYMENT_STATUS.PENDING,
-    validate: {
-      isIn: [[
-        PAYMENT_STATUS.PENDING,
-        PAYMENT_STATUS.COMPLETED,
-        PAYMENT_STATUS.FAILED,
-        PAYMENT_STATUS.CANCELLED
-      ]]
-    }
+    type: String,
+    enum: Object.values(PAYMENT_STATUS),
+    default: PAYMENT_STATUS.PENDING
   },
-  paymentResponse: {
-    type: DataTypes.JSONB,
-    allowNull: true,
-    field: 'payment_response',
-    comment: 'Store full ITECPay response'
+  
+  // ITEC Payment transaction ID
+  transactionId: {
+    type: String,
+    default: null
+  },
+  
+  // Metadata (store additional info like subscription details)
+  metadata: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  
+  // Timestamps
+  completedAt: {
+    type: Date,
+    default: null
+  },
+  
+  failedAt: {
+    type: Date,
+    default: null
+  },
+  
+  // ✅ NEW: Cancellation tracking
+  cancelledAt: {
+    type: Date,
+    default: null
+  },
+  
+  cancellationReason: {
+    type: String,
+    default: null
+  },
+  
+  // Error message if payment failed
+  errorMessage: {
+    type: String,
+    default: null
   }
 }, {
-  tableName: 'payments',
-  timestamps: true,
-  underscored: true
+  timestamps: true
 });
 
-module.exports = Payment;
+// Index for faster queries
+paymentSchema.index({ user: 1, status: 1 });
+// paymentSchema.index({ transactionId: 1 });
+// paymentSchema.index({ transactionId: 1 }, { sparse: true, unique: true });
+paymentSchema.index({ transactionId: 1 }, { sparse: true });
+paymentSchema.index({ createdAt: -1 });
+paymentSchema.index({ user: 1, paymentType: 1, referenceId: 1 });
+paymentSchema.index({ status: 1, createdAt: 1 }); // ✅ NEW: For expired payment queries
+
+// ==========================================
+// STATIC METHODS
+// ==========================================
+
+/**
+ * ✅ Cancel expired pending payments
+ * 
+ * PURPOSE: Mobile money payments typically expire after 15 minutes.
+ * This method automatically cancels any pending payments that are older
+ * than 15 minutes to keep the database clean and prevent confusion.
+ * 
+ * HOW IT WORKS:
+ * 1. Calculates the expiry time (15 minutes ago from now)
+ * 2. Finds all payments that are:
+ *    - Still in 'pending' status
+ *    - Created more than 15 minutes ago
+ * 3. Updates them to 'cancelled' status
+ * 4. Records when and why they were cancelled
+ * 
+ * RUNS AUTOMATICALLY: Every 5 minutes via the payment scheduler
+ * 
+ * @returns {Promise<Object>} Result object with number of cancelled payments
+ */
+paymentSchema.statics.cancelExpiredPayments = async function() {
+  try {
+    // Calculate expiry time: 15 minutes ago
+    const EXPIRY_MINUTES = 15;
+    const expiryTime = new Date(Date.now() - EXPIRY_MINUTES * 60 * 1000);
+    
+    console.log(`🔍 Checking for payments older than ${EXPIRY_MINUTES} minutes...`);
+    console.log(`   Expiry cutoff time: ${expiryTime.toISOString()}`);
+    
+    // Find and update expired payments
+    const result = await this.updateMany(
+      {
+        status: PAYMENT_STATUS.PENDING,  // Only pending payments
+        createdAt: { $lt: expiryTime }   // Created before expiry time
+      },
+      {
+        $set: { 
+          status: PAYMENT_STATUS.CANCELLED,
+          cancelledAt: new Date(),
+          cancellationReason: `Payment expired after ${EXPIRY_MINUTES} minutes of inactivity`
+        }
+      }
+    );
+    
+    if (result.modifiedCount > 0) {
+      console.log(`✅ Cancelled ${result.modifiedCount} expired payment(s)`);
+    } else {
+      console.log('✓ No expired payments found');
+    }
+    
+    return {
+      success: true,
+      cancelledCount: result.modifiedCount,
+      message: `Cancelled ${result.modifiedCount} expired payment(s)`
+    };
+    
+  } catch (error) {
+    console.error('❌ Error cancelling expired payments:', error);
+    throw error;
+  }
+};
+
+/**
+ * ✅ Get payment statistics for a user
+ * 
+ * @param {ObjectId} userId - User ID
+ * @returns {Promise<Object>} Payment statistics
+ */
+paymentSchema.statics.getUserPaymentStats = async function(userId) {
+  const stats = await this.aggregate([
+    { $match: { user: mongoose.Types.ObjectId(userId) } },
+    {
+      $group: {
+        _id: '$status',
+        count: { $sum: 1 },
+        totalAmount: { $sum: '$amount' }
+      }
+    }
+  ]);
+  
+  return stats;
+};
+
+// ==========================================
+// INSTANCE METHODS
+// ==========================================
+
+/**
+ * Mark payment as completed
+ */
+paymentSchema.methods.markAsCompleted = function(transactionId) {
+  this.status = PAYMENT_STATUS.COMPLETED;
+  this.completedAt = new Date();
+  this.transactionId = transactionId;
+  return this.save();
+};
+
+/**
+ * Mark payment as failed
+ */
+paymentSchema.methods.markAsFailed = function(errorMessage) {
+  this.status = PAYMENT_STATUS.FAILED;
+  this.failedAt = new Date();
+  this.errorMessage = errorMessage;
+  return this.save();
+};
+
+/**
+ * Mark payment as cancelled
+ */
+paymentSchema.methods.markAsCancelled = function(reason) {
+  this.status = PAYMENT_STATUS.CANCELLED;
+  this.cancelledAt = new Date();
+  this.cancellationReason = reason || 'Cancelled by user';
+  return this.save();
+};
+
+module.exports = mongoose.model('Payment', paymentSchema);

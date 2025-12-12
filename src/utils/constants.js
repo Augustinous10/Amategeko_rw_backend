@@ -1,6 +1,8 @@
-// User Roles
+// utils/constants.js - COMPLETE UPDATED VERSION
+
+// User Roles - FIXED TO MATCH FRONTEND
 const USER_ROLES = {
-  USER: 'user',
+  CLIENT: 'client',  // ← Changed from USER: 'user'
   ADMIN: 'admin'
 };
 
@@ -27,22 +29,10 @@ const DIFFICULTY = {
   HARD: 'hard'
 };
 
-// Question Categories
-const QUESTION_CATEGORIES = {
-  ROAD_SIGNS: 'road_signs',
-  TRAFFIC_RULES: 'traffic_rules',
-  SAFETY: 'safety',
-  PARKING: 'parking',
-  EMERGENCY: 'emergency',
-  VEHICLE_OPERATION: 'vehicle_operation'
-};
-
-// Product Categories
-const PRODUCT_CATEGORIES = {
-  THEORY: 'theory',
-  ROAD_SIGNS: 'road_signs',
-  PRACTICE_TESTS: 'practice_tests',
-  GENERAL: 'general'
+// Product Types (for digital products)
+const PRODUCT_TYPES = {
+  IGAZETE: 'igazete',
+  QUESTIONS_400: 'questions_400'
 };
 
 // Payment Methods
@@ -73,23 +63,151 @@ const EXAM_STATUS = {
   ABANDONED: 'abandoned'
 };
 
-// Subscription Plans
+// ========== NEW: SUBSCRIPTION SYSTEM ==========
+
+// Subscription Types
+const SUBSCRIPTION_TYPES = {
+  SINGLE_EXAM: 'single_exam',
+  FIVE_EXAMS: 'five_exams',
+  SEVEN_DAYS: 'seven_days',
+  FIFTEEN_DAYS: 'fifteen_days',
+  THIRTY_DAYS: 'thirty_days'
+};
+
+// Subscription Status
+const SUBSCRIPTION_STATUS = {
+  ACTIVE: 'active',
+  EXPIRED: 'expired',
+  CANCELLED: 'cancelled'
+};
+
+// Pricing structure based on language and subscription type (in RWF)
+const SUBSCRIPTION_PRICING = {
+  [SUBSCRIPTION_TYPES.SINGLE_EXAM]: {
+    [LANGUAGES.KINYARWANDA]: 100,
+    [LANGUAGES.ENGLISH]: 200,
+    [LANGUAGES.FRENCH]: 200
+  },
+  [SUBSCRIPTION_TYPES.FIVE_EXAMS]: {
+    [LANGUAGES.KINYARWANDA]: 500,
+    [LANGUAGES.ENGLISH]: 800,
+    [LANGUAGES.FRENCH]: 800
+  },
+  [SUBSCRIPTION_TYPES.SEVEN_DAYS]: {
+    [LANGUAGES.KINYARWANDA]: 2500,
+    [LANGUAGES.ENGLISH]: 3000,
+    [LANGUAGES.FRENCH]: 3000
+  },
+  [SUBSCRIPTION_TYPES.FIFTEEN_DAYS]: {
+    [LANGUAGES.KINYARWANDA]: 4500,
+    [LANGUAGES.ENGLISH]: 5000,
+    [LANGUAGES.FRENCH]: 5000
+  },
+  [SUBSCRIPTION_TYPES.THIRTY_DAYS]: {
+    [LANGUAGES.KINYARWANDA]: 7000,
+    [LANGUAGES.ENGLISH]: 8000,
+    [LANGUAGES.FRENCH]: 8000
+  }
+};
+
+// Digital product pricing (fixed for all languages)
+const DIGITAL_PRODUCT_PRICES = {
+  IGAZETE: 4000,
+  QUESTION_BANK_400: 4000
+};
+
+// ========== HELPER FUNCTIONS ==========
+
+// Get subscription price based on type and language
+const getSubscriptionPrice = (subscriptionType, language) => {
+  if (!SUBSCRIPTION_PRICING[subscriptionType]) {
+    throw new Error('Invalid subscription type');
+  }
+  
+  if (!SUBSCRIPTION_PRICING[subscriptionType][language]) {
+    throw new Error('Invalid language for this subscription');
+  }
+  
+  return SUBSCRIPTION_PRICING[subscriptionType][language];
+};
+
+// Get exam limits based on subscription type
+const getExamLimits = (subscriptionType) => {
+  const limits = {
+    [SUBSCRIPTION_TYPES.SINGLE_EXAM]: { exams: 1, days: null },
+    [SUBSCRIPTION_TYPES.FIVE_EXAMS]: { exams: 5, days: null },
+    [SUBSCRIPTION_TYPES.SEVEN_DAYS]: { exams: Infinity, days: 7 },
+    [SUBSCRIPTION_TYPES.FIFTEEN_DAYS]: { exams: Infinity, days: 15 },
+    [SUBSCRIPTION_TYPES.THIRTY_DAYS]: { exams: Infinity, days: 30 }
+  };
+  
+  return limits[subscriptionType] || { exams: 0, days: 0 };
+};
+
+// Get language display name
+const getLanguageDisplayName = (languageCode) => {
+  const names = {
+    [LANGUAGES.KINYARWANDA]: 'Kinyarwanda',
+    [LANGUAGES.ENGLISH]: 'English',
+    [LANGUAGES.FRENCH]: 'French'
+  };
+  return names[languageCode] || languageCode;
+};
+
+// Get subscription type display name
+const getSubscriptionDisplayName = (subscriptionType) => {
+  const names = {
+    [SUBSCRIPTION_TYPES.SINGLE_EXAM]: '1 Exam',
+    [SUBSCRIPTION_TYPES.FIVE_EXAMS]: '5 Exams',
+    [SUBSCRIPTION_TYPES.SEVEN_DAYS]: '7 Days Unlimited',
+    [SUBSCRIPTION_TYPES.FIFTEEN_DAYS]: '15 Days Unlimited',
+    [SUBSCRIPTION_TYPES.THIRTY_DAYS]: '30 Days Unlimited'
+  };
+  return names[subscriptionType] || subscriptionType;
+};
+
+// ========== LEGACY (kept for backward compatibility) ==========
 const SUBSCRIPTION_PLANS = {
   BASIC: 'Basic',
   PREMIUM: 'Premium',
   PRO: 'Pro'
 };
 
+// ========== EXPORTS ==========
 module.exports = {
+  // User & Auth
   USER_ROLES,
+  
+  // Languages
   LANGUAGES,
+  
+  // Exam
   EXAM_CONFIG,
+  EXAM_STATUS,
+  
+  // Questions
   DIFFICULTY,
-  QUESTION_CATEGORIES,
-  PRODUCT_CATEGORIES,
+  
+  // Products
+  PRODUCT_TYPES,
+  DIGITAL_PRODUCT_PRICES,
+  
+  // Payments
   PAYMENT_METHODS,
   PAYMENT_STATUS,
   PAYMENT_TYPES,
-  EXAM_STATUS,
-  SUBSCRIPTION_PLANS
+  
+  // Subscriptions (NEW)
+  SUBSCRIPTION_TYPES,
+  SUBSCRIPTION_STATUS,
+  SUBSCRIPTION_PRICING,
+  
+  // Legacy
+  SUBSCRIPTION_PLANS,
+  
+  // Helper Functions
+  getSubscriptionPrice,
+  getExamLimits,
+  getLanguageDisplayName,
+  getSubscriptionDisplayName
 };

@@ -1,45 +1,65 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
 
-const Subscription = sequelize.define('Subscription', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
+const subscriptionSchema = new mongoose.Schema({
+  type: {
+    type: String,
+    required: [true, 'Subscription type is required'],
+    unique: true,
+    trim: true
   },
   name: {
-    type: DataTypes.STRING(100),
-    allowNull: false
+    rw: { type: String, required: true },  // Kinyarwanda
+    en: { type: String, required: true },  // English
+    fr: { type: String, required: true }   // French
   },
   description: {
-    type: DataTypes.TEXT,
-    allowNull: true
+    rw: { type: String },
+    en: { type: String },
+    fr: { type: String }
   },
-  price: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false
+  pricing: {
+    rw: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    en: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    fr: {
+      type: Number,
+      required: true,
+      min: 0
+    }
+  },
+  currency: {
+    type: String,
+    default: 'RWF'
   },
   durationDays: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    field: 'duration_days',
-    comment: 'Duration in days (e.g., 30, 90, 365)'
+    type: Number,
+    default: null
+  },
+  examLimit: {
+    type: Number,
+    default: null
   },
   features: {
-    type: DataTypes.JSONB,
-    allowNull: false,
-    defaultValue: {},
-    comment: 'JSON: { exam_attempts: 10, video_access: true, materials_access: true }'
+    examAttempts: {
+      type: Number,
+      default: 0
+    }
   },
   isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true,
-    field: 'is_active'
+    type: Boolean,
+    default: true
   }
 }, {
-  tableName: 'subscriptions',
-  timestamps: true,
-  underscored: true
+  timestamps: true
 });
 
-module.exports = Subscription;
+subscriptionSchema.index({ type: 1, isActive: 1 });
+
+module.exports = mongoose.model('Subscription', subscriptionSchema);

@@ -1,74 +1,67 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
-const { LANGUAGES, PRODUCT_CATEGORIES } = require('../utils/constants');
+// models/DigitalProduct.js
 
-const DigitalProduct = sequelize.define('DigitalProduct', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
-  },
+const mongoose = require('mongoose');
+const { PRODUCT_TYPES, LANGUAGES } = require('../utils/constants');
+
+const digitalProductSchema = new mongoose.Schema({
   title: {
-    type: DataTypes.STRING(255),
-    allowNull: false
+    type: String,
+    required: [true, 'Please provide product title'],
+    trim: true
   },
   description: {
-    type: DataTypes.TEXT,
-    allowNull: true
+    type: String,
+    trim: true
   },
-  price: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false
+  productType: {
+    type: String,
+    enum: Object.values(PRODUCT_TYPES),
+    required: [true, 'Please specify product type']
   },
   language: {
-    type: DataTypes.STRING(2),
-    allowNull: false,
-    validate: {
-      isIn: [[LANGUAGES.KINYARWANDA, LANGUAGES.ENGLISH, LANGUAGES.FRENCH]]
-    }
+    type: String,
+    enum: Object.values(LANGUAGES),
+    required: [true, 'Please specify language']
+  },
+  price: {
+    type: Number,
+    required: [true, 'Please provide price'],
+    min: 0
+  },
+  currency: {
+    type: String,
+    default: 'RWF'
   },
   fileUrl: {
-    type: DataTypes.STRING(500),
-    allowNull: false,
-    field: 'file_url'
+    type: String,
+    required: [true, 'File URL is required']
   },
   fileSize: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    field: 'file_size',
-    comment: 'File size in bytes'
+    type: Number
   },
   cloudinaryPublicId: {
-    type: DataTypes.STRING(255),
-    allowNull: true,
-    field: 'cloudinary_public_id'
-  },
-  category: {
-    type: DataTypes.STRING(100),
-    allowNull: true,
-    validate: {
-      isIn: [[
-        PRODUCT_CATEGORIES.THEORY,
-        PRODUCT_CATEGORIES.ROAD_SIGNS,
-        PRODUCT_CATEGORIES.PRACTICE_TESTS,
-        PRODUCT_CATEGORIES.GENERAL
-      ]]
-    }
+    type: String
   },
   isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true,
-    field: 'is_active'
+    type: Boolean,
+    default: true
   },
   downloadsCount: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0,
-    field: 'downloads_count'
+    type: Number,
+    default: 0
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   }
 }, {
-  tableName: 'digital_products',
-  timestamps: true,
-  underscored: true
+  timestamps: true
 });
 
-module.exports = DigitalProduct;
+// Index for efficient queries
+digitalProductSchema.index({ productType: 1, language: 1, isActive: 1 });
+
+// Ensure only one product per type per language (no duplicates)
+digitalProductSchema.index({ productType: 1, language: 1 }, { unique: true });
+
+module.exports = mongoose.model('DigitalProduct', digitalProductSchema);

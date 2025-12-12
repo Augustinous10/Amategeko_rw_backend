@@ -1,54 +1,37 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
 
-const UserSubscription = sequelize.define('UserSubscription', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
+const userSubscriptionSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   },
-  userId: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    field: 'user_id',
-    references: {
-      model: 'users',
-      key: 'id'
-    }
-  },
-  subscriptionId: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    field: 'subscription_id',
-    references: {
-      model: 'subscriptions',
-      key: 'id'
-    }
+  subscription: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Subscription',
+    required: true
   },
   startDate: {
-    type: DataTypes.DATE,
-    allowNull: false,
-    field: 'start_date'
+    type: Date,
+    required: true
   },
   endDate: {
-    type: DataTypes.DATE,
-    allowNull: false,
-    field: 'end_date'
+    type: Date,
+    required: true
   },
   isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true,
-    field: 'is_active'
+    type: Boolean,
+    default: true
   },
   examAttemptsUsed: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0,
-    field: 'exam_attempts_used'
+    type: Number,
+    default: 0
   }
 }, {
-  tableName: 'user_subscriptions',
-  timestamps: true,
-  underscored: true
+  timestamps: true
 });
 
-module.exports = UserSubscription;
+// Index for efficient queries
+userSubscriptionSchema.index({ user: 1, isActive: 1, endDate: 1 });
+
+module.exports = mongoose.model('UserSubscription', userSubscriptionSchema);

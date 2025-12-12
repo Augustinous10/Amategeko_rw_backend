@@ -1,85 +1,78 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const { USER_ROLES, LANGUAGES } = require('../utils/constants');
 
-const User = sequelize.define('User', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
+const userSchema = new mongoose.Schema({
+  phone: {
+    type: String,
+    required: [true, 'Phone number is required'],
+    unique: true,
+    trim: true
   },
   email: {
-    type: DataTypes.STRING(255),
-    allowNull: false,
+    type: String,
     unique: true,
-    validate: {
-      isEmail: true
-    }
+    sparse: true, // Allows multiple null values
+    lowercase: true,
+    trim: true,
+    default: undefined, // Don't set null, use undefined
+    match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email']
   },
   password: {
-    type: DataTypes.STRING(255),
-    allowNull: false
+    type: String,
+    required: [true, 'Password is required'],
+    minlength: 6,
+    select: false
   },
   fullName: {
-    type: DataTypes.STRING(255),
-    allowNull: false,
-    field: 'full_name'
-  },
-  phone: {
-    type: DataTypes.STRING(20),
-    allowNull: true
+    type: String,
+    required: [true, 'Full name is required'],
+    trim: true
   },
   role: {
-    type: DataTypes.STRING(20),
-    defaultValue: USER_ROLES.USER,
-    validate: {
-      isIn: [[USER_ROLES.USER, USER_ROLES.ADMIN]]
-    }
+    type: String,
+    enum: Object.values(USER_ROLES),
+    default: USER_ROLES.CLIENT  // ✅ Changed from USER_ROLES.USER
   },
   preferredLanguage: {
-    type: DataTypes.STRING(2),
-    defaultValue: LANGUAGES.KINYARWANDA,
-    field: 'preferred_language',
-    validate: {
-      isIn: [[LANGUAGES.KINYARWANDA, LANGUAGES.ENGLISH, LANGUAGES.FRENCH]]
-    }
+    type: String,
+    enum: Object.values(LANGUAGES),
+    default: LANGUAGES.KINYARWANDA
+  },
+  resetPasswordToken: {
+    type: String
+  },
+  resetPasswordExpire: {
+    type: Date
   },
   isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true,
-    field: 'is_active'
+    type: Boolean,
+    default: true
   }
 }, {
-  tableName: 'users',
   timestamps: true,
-  underscored: true,
-  hooks: {
-    beforeCreate: async (user) => {
-      if (user.password) {
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(user.password, salt);
-      }
-    },
-    beforeUpdate: async (user) => {
-      if (user.changed('password')) {
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(user.password, salt);
-      }
+  toJSON: { 
+    virtuals: true,
+    transform: function(doc, ret) {
+      delete ret.password;
+      return ret;
     }
-  }
+  },
+  toObject: { virtuals: true }
 });
 
-// Instance method to compare password
-User.prototype.comparePassword = async function(candidatePassword) {
+// Hash password before saving
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+
+// Compare password method
+userSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Instance method to get user without password
-User.prototype.toJSON = function() {
-  const values = Object.assign({}, this.get());
-  delete values.password;
-  return values;
-};
-
-module.exports = User;
+module.exports = mongoose.model('User', userSchema);
