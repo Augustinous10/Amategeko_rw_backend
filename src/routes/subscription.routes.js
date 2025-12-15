@@ -1,5 +1,3 @@
-// routes/subscription.routes.js
-
 const express = require('express');
 const router = express.Router();
 const { 
@@ -8,8 +6,9 @@ const {
   confirmSubscriptionPayment,
   getActiveSubscription,
   getSubscriptionHistory,
-  getAllSubscriptions,  // ← ADD THIS LINE
-  cancelSubscription
+  getAllSubscriptions,
+  cancelSubscription,
+  getAllPayments  // ← ADD THIS
 } = require('../controllers/subscription.controller');
 const { authenticate, isAdmin } = require('../middlewares/auth');
 
@@ -21,11 +20,12 @@ router.post('/purchase', authenticate, purchaseSubscription);
 router.get('/active', authenticate, getActiveSubscription);
 router.get('/history', authenticate, getSubscriptionHistory);
 
-// Internal/webhook route (should have additional security in production)
+// Internal/webhook route
 router.post('/confirm-payment', confirmSubscriptionPayment);
 
 // Admin routes
 router.get('/admin/all', authenticate, isAdmin, getAllSubscriptions);
+router.get('/admin/payments', authenticate, isAdmin, getAllPayments);  // ← ADD THIS
 router.put('/:id/cancel', authenticate, isAdmin, cancelSubscription);
 
 module.exports = router;

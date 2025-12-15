@@ -42,10 +42,24 @@ const paymentSchema = new mongoose.Schema({
     enum: Object.values(PAYMENT_METHODS)
   },
   
+  // ✅ UPDATED: Accept multiple phone number formats
   phoneNumber: {
     type: String,
     required: true,
-    match: /^07[0-9]{8}$/ // Rwanda format: 07XXXXXXXX
+    validate: {
+      validator: function(v) {
+        // Remove spaces and dashes for validation
+        const cleaned = v.replace(/[\s-]/g, '');
+        
+        // Accept these formats:
+        // 0781234567 (10 digits starting with 07)
+        // +250781234567 (with +250)
+        // 250781234567 (with 250)
+        // 781234567 (9 digits starting with 7)
+        return /^(\+?250|0)?7[0-9]{8}$/.test(cleaned);
+      },
+      message: 'Please enter a valid Rwandan phone number (e.g., 0781234567, +250781234567)'
+    }
   },
   
   // Payment status
@@ -78,7 +92,7 @@ const paymentSchema = new mongoose.Schema({
     default: null
   },
   
-  // ✅ NEW: Cancellation tracking
+  // Cancellation tracking
   cancelledAt: {
     type: Date,
     default: null
@@ -98,14 +112,43 @@ const paymentSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// ==========================================
+// PRE-SAVE HOOK - NORMALIZE PHONE NUMBERS
+// ==========================================
+
+/**
+ * ✅ Normalize phone numbers to standard Rwanda format (07XXXXXXXX)
+ * 
+ * This ensures all phone numbers are stored consistently regardless
+ * of how users enter them (with/without country code, with/without +)
+ */
+paymentSchema.pre('save', function(next) {
+  if (this.phoneNumber && this.isModified('phoneNumber')) {
+    // Remove spaces, dashes, and plus signs
+    let cleaned = this.phoneNumber.replace(/[\s\-+]/g, '');
+    
+    // If it starts with 250 (country code), remove it and add 0
+    if (cleaned.startsWith('250')) {
+      cleaned = '0' + cleaned.substring(3);
+    }
+    
+    // If it doesn't start with 0, add it
+    if (!cleaned.startsWith('0')) {
+      cleaned = '0' + cleaned;
+    }
+    
+    // Store in normalized format: 07XXXXXXXX
+    this.phoneNumber = cleaned;
+  }
+  next();
+});
+
 // Index for faster queries
 paymentSchema.index({ user: 1, status: 1 });
-// paymentSchema.index({ transactionId: 1 });
-// paymentSchema.index({ transactionId: 1 }, { sparse: true, unique: true });
 paymentSchema.index({ transactionId: 1 }, { sparse: true });
 paymentSchema.index({ createdAt: -1 });
 paymentSchema.index({ user: 1, paymentType: 1, referenceId: 1 });
-paymentSchema.index({ status: 1, createdAt: 1 }); // ✅ NEW: For expired payment queries
+paymentSchema.index({ status: 1, createdAt: 1 }); // For expired payment queries
 
 // ==========================================
 // STATIC METHODS

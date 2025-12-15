@@ -13,13 +13,22 @@ const {
 const { authenticate, isAdmin } = require('../middlewares/auth');
 const { uploadPDF } = require('../middlewares/upload');
 
+// ==========================================
+// CRITICAL: Specific routes BEFORE dynamic routes!
+// ==========================================
+
 // Public routes
 router.get('/', getProducts);
+
+// ✅ FIXED: Move specific routes BEFORE the dynamic /:id route
+// Protected user routes - SPECIFIC PATHS FIRST
+router.get('/my-purchases', authenticate, getMyPurchases);
+
+// Public routes - DYNAMIC ROUTES LAST
 router.get('/:id', getProduct);
 
-// Protected user routes
+// Protected user routes - Dynamic product actions
 router.post('/:id/purchase', authenticate, purchaseProduct);
-router.get('/my-purchases', authenticate, getMyPurchases);
 router.get('/:id/download', authenticate, downloadProduct);
 
 // Admin routes

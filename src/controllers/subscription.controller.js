@@ -492,6 +492,106 @@ const cancelSubscription = async (req, res, next) => {
     next(error);
   }
 };
+// @desc    Get all payments (subscriptions + digital products) - Admin
+// @route   GET /api/subscriptions/admin/payments
+// @access  Private/Admin
+const getAllPayments = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 100, paymentType } = req.query;
+    const skip = (page - 1) * limit;
+
+    // Build filter
+    const filter = { status: PAYMENT_STATUS.COMPLETED };
+    if (paymentType && [PAYMENT_TYPES.SUBSCRIPTION, PAYMENT_TYPES.PRODUCT].includes(paymentType)) {
+      filter.paymentType = paymentType;
+    }
+
+    const count = await Payment.countDocuments(filter);
+    
+    const payments = await Payment.find(filter)
+      .populate('user', 'fullName email phoneNumber')
+      .populate({
+        path: 'referenceId',
+        select: 'title name description productType language pricing'
+      })
+      .limit(parseInt(limit))
+      .skip(skip)
+      .sort({ completedAt: -1, createdAt: -1 });
+
+    // Format payments with detailed information
+    const formattedPayments = payments.map(payment => {
+      const baseData = {
+        _id: payment._id,
+        user: payment.user,
+        amount: payment.amount,
+        currency: payment.currency,
+        paymentMethod: payment.paymentMethod,
+        phoneNumber: payment.phoneNumber,
+        status: payment.status,
+        paymentType: payment.paymentType,
+        transactionId: payment.transactionId,
+        createdAt: payment.createdAt,
+        completedAt: payment.completedAt || payment.createdAt
+      };
+
+      // Add specific details based on payment type
+      if (payment.paymentType === PAYMENT_TYPES.SUBSCRIPTION) {
+        return {
+          ...baseData,
+          itemDetails: {
+            type: 'subscription',
+            name: payment.metadata?.subscriptionType || 'Subscription',
+            language: payment.metadata?.language,
+            examLimit: payment.metadata?.examLimit,
+            expiryDate: payment.metadata?.expiryDate
+          }
+        };
+      } else if (payment.paymentType === PAYMENT_TYPES.PRODUCT) {
+        // For digital products, referenceId points to the product
+        const product = payment.referenceId;
+        return {
+          ...baseData,
+          itemDetails: {
+            type: 'product',
+            name: product?.title || 'Digital Product',
+            productType: product?.productType,
+            language: product?.language,
+            description: product?.description
+          }
+        };
+      }
+
+      return baseData;
+    });
+
+    // Calculate revenue by type
+    const subscriptionRevenue = payments
+      .filter(p => p.paymentType === PAYMENT_TYPES.SUBSCRIPTION)
+      .reduce((sum, p) => sum + p.amount, 0);
+    
+    const productRevenue = payments
+      .filter(p => p.paymentType === PAYMENT_TYPES.PRODUCT)
+      .reduce((sum, p) => sum + p.amount, 0);
+
+    res.status(200).json({
+      success: true,
+      count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: parseInt(page),
+      data: { 
+        payments: formattedPayments,
+        stats: {
+          totalRevenue: subscriptionRevenue + productRevenue,
+          subscriptionRevenue,
+          productRevenue,
+          totalPayments: count
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 module.exports = {
   getSubscriptionPlans,
@@ -500,5 +600,6 @@ module.exports = {
   getActiveSubscription,
   getSubscriptionHistory,
   getAllSubscriptions,
-  cancelSubscription
+  cancelSubscription,
+   getAllPayments 
 };
