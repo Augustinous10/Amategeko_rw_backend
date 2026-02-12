@@ -14,29 +14,39 @@ const startExam = async (req, res, next) => {
     
     console.log(`📝 User ${userId} attempting to start exam in language: ${language}`);
 
-    // ✅ CHECK 1: Verify user has active subscription
-    const userSubscription = await UserSubscription.findOne({
-      user: userId,
-      isActive: true,
-      endDate: { $gte: new Date() }
-    }).populate('subscription');
+          // ✅ CHECK 1: Verify user has active subscription
+      const userSubscription = await UserSubscription.findOne({
+        user: userId,
+        isActive: true,
+        $or: [
+          { endDate: { $gte: new Date() } },
+          { endDate: null }
+        ]
+      }).populate('subscription');
 
-    console.log('🔍 Subscription check:', userSubscription ? {
-      id: userSubscription._id,
-      isActive: userSubscription.isActive,
-      examAttemptsUsed: userSubscription.examAttemptsUsed,
-      endDate: userSubscription.endDate,
-      planExamLimit: userSubscription.subscription?.examLimit
-    } : 'NONE FOUND');
-
-    if (!userSubscription) {
-      console.log('❌ NO ACTIVE SUBSCRIPTION');
-      return res.status(403).json({
-        success: false,
-        message: 'Active subscription required to start exam',
-        code: 'NO_SUBSCRIPTION'
+      console.log('🔍 Subscription query:', {
+        userId,
+        currentDate: new Date(),
+        foundSubscription: !!userSubscription
       });
-    }
+
+      if (userSubscription) {
+        console.log('✅ Subscription found:', {
+          id: userSubscription._id,
+          isActive: userSubscription.isActive,
+          endDate: userSubscription.endDate,
+          planType: userSubscription.subscription?.type
+        });
+      }
+
+      if (!userSubscription) {
+        console.log('❌ NO ACTIVE SUBSCRIPTION');
+        return res.status(403).json({
+          success: false,
+          message: 'Active subscription required to start exam',
+          code: 'NO_SUBSCRIPTION'
+        });
+      }
 
     // ✅ CHECK 2: Verify user has remaining exam attempts
     const subscriptionPlan = userSubscription.subscription;
@@ -59,21 +69,22 @@ const startExam = async (req, res, next) => {
         });
       }
     }
+// ✅ CHECK 3: Check if user has incomplete exam - AUTO-ABANDON IT
+const incompleteExam = await ExamAttempt.findOne({
+  user: userId,
+  status: EXAM_STATUS.IN_PROGRESS
+});
 
-    // ✅ CHECK 3: Check if user has incomplete exam
-    const incompleteExam = await ExamAttempt.findOne({
-      user: userId,
-      status: EXAM_STATUS.IN_PROGRESS
-    });
-
-    if (incompleteExam) {
-      return res.status(400).json({
-        success: false,
-        message: 'You have an incomplete exam. Please complete or abandon it first.',
-        examId: incompleteExam._id,
-        code: 'INCOMPLETE_EXAM'
-      });
-    }
+if (incompleteExam) {
+  console.log(`⚠️ Found incomplete exam ${incompleteExam._id}, auto-abandoning it`);
+  
+  // Automatically mark old incomplete exam as abandoned
+  incompleteExam.status = 'abandoned';
+  incompleteExam.endTime = new Date();
+  await incompleteExam.save();
+  
+  console.log(`✅ Old exam abandoned, proceeding with new exam`);
+}
 
     // ✅ CHECK 4: Verify sufficient questions available in selected language
     const totalAvailableQuestions = await Question.countDocuments({ 

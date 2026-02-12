@@ -8,7 +8,9 @@ const {
   getSubscriptionHistory,
   getAllSubscriptions,
   cancelSubscription,
-  getAllPayments  // ← ADD THIS
+  manuallyActivateSubscription,
+  getAllPayments,
+  directActivateSubscription  // 👈 ADD THIS NEW ENDPOINT
 } = require('../controllers/subscription.controller');
 const { authenticate, isAdmin } = require('../middlewares/auth');
 
@@ -25,7 +27,9 @@ router.post('/confirm-payment', confirmSubscriptionPayment);
 
 // Admin routes
 router.get('/admin/all', authenticate, isAdmin, getAllSubscriptions);
-router.get('/admin/payments', authenticate, isAdmin, getAllPayments);  // ← ADD THIS
+router.get('/admin/payments', authenticate, isAdmin, getAllPayments);
+router.post('/admin/activate-payment/:paymentId', authenticate, isAdmin, manuallyActivateSubscription);
+router.post('/admin/direct-activate', authenticate, isAdmin, directActivateSubscription);  // 👈 ADD THIS NEW ROUTE
 router.put('/:id/cancel', authenticate, isAdmin, cancelSubscription);
 
 module.exports = router;

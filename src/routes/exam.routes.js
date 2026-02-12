@@ -16,8 +16,8 @@ const { hasActiveSubscription, hasExamAttempts } = require('../middlewares/valid
 router.use(authenticate);
 
 // Start exam - requires active subscription and available attempts
-router.post('/start', hasActiveSubscription, hasExamAttempts, startExam);
-
+// router.post('/start', hasActiveSubscription, hasExamAttempts, startExam);
+router.post('/start', startExam);
 // Exam actions
 router.get('/history', getHistory);
 router.get('/stats', getExamStats);

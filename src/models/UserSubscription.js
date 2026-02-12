@@ -13,7 +13,8 @@ const userSubscriptionSchema = new mongoose.Schema({
   },
   startDate: {
     type: Date,
-    required: true
+    required: true,
+    default: Date.now
   },
   endDate: {
     type: Date,
@@ -26,6 +27,30 @@ const userSubscriptionSchema = new mongoose.Schema({
   examAttemptsUsed: {
     type: Number,
     default: 0
+  },
+  
+  // Admin activation fields
+  activatedBy: {
+    type: String,
+    enum: ['payment', 'admin'],
+    default: 'payment'
+  },
+  activatedByAdmin: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false
+  },
+  activationNote: {
+    type: String,
+    required: false
+  },
+  planSnapshot: {
+    type: {
+      type: String
+    },
+    name: String,
+    examLimit: Number,
+    durationDays: Number
   }
 }, {
   timestamps: true
@@ -34,4 +59,5 @@ const userSubscriptionSchema = new mongoose.Schema({
 // Index for efficient queries
 userSubscriptionSchema.index({ user: 1, isActive: 1, endDate: 1 });
 
-module.exports = mongoose.model('UserSubscription', userSubscriptionSchema);
+// Prevent OverwriteModelError on hot reload
+module.exports = mongoose.models.UserSubscription || mongoose.model('UserSubscription', userSubscriptionSchema);
