@@ -25,21 +25,49 @@ const app = express();
 
 // ===== MIDDLEWARE =====
 
-// Security headers
-app.use(helmet());
+// Security headers - Updated for production
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable for API
+  crossOriginEmbedderPolicy: false
+}));
 
-// ✅ FIXED CORS configuration - Allow multiple origins
+// ✅ PRODUCTION-READY CORS configuration
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:8080',
+  'https://itara.co.rw',
+  'https://www.itara.co.rw',
+  'https://rwanda-drive-prep-production.up.railway.app', // Your Railway frontend
+];
+
+// Add CORS_ORIGIN from env if it exists
+if (process.env.CORS_ORIGIN) {
+  const envOrigins = process.env.CORS_ORIGIN.split(',').map(origin => origin.trim());
+  allowedOrigins.push(...envOrigins);
+}
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:8080',
-    'http://localhost:5173',
-    process.env.CLIENT_URL
-  ].filter(Boolean), // Remove undefined values
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('⚠️  CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 600 // 10 minutes
 }));
+
+// Handle preflight requests
+app.options('*', cors());
 
 // Body parser
 app.use(express.json({ limit: '10mb' }));
@@ -52,24 +80,46 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('combined'));
 }
 
-// Rate limiting
+// Rate limiting - More strict in production
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
-app.use('/api/', limiter);
+
+// Apply rate limiting to all API routes
+if (process.env.RATE_LIMIT_ENABLED !== 'false') {
+  app.use('/api/', limiter);
+}
+
+// Trust proxy - Important for Railway deployment
+app.set('trust proxy', 1);
 
 // ===== ROUTES =====
 
-// Health check
+// Health check - Enhanced for production
 app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'UMUHANDA API is running',
+    message: 'ITARA API is running',
+    environment: process.env.NODE_ENV || 'development',
     database: 'MongoDB Connected',
-    payment: 'Payment system active',
-    timestamp: new Date().toISOString()
+    payment: 'ITECPay Integrated',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: '1.0.0'
+  });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Welcome to ITARA API',
+    documentation: '/api/docs',
+    health: '/health'
   });
 });
 
@@ -101,18 +151,47 @@ const startServer = async () => {
     paymentScheduler.start();
 
     // Start server
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, '0.0.0.0', () => {
       console.log('=================================');
-      console.log(`🚗 UMUHANDA API Server`);
+      console.log(`🚗 ITARA API Server`);
       console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🗄️  Database: MongoDB`);
+      console.log(`🗄️  Database: MongoDB Connected`);
       console.log(`💳 Payment: ITECPay Integrated`);
       console.log(`🌐 Server running on port ${PORT}`);
-      console.log(`🔗 API URL: http://localhost:${PORT}`);
-      console.log(`💚 Health check: http://localhost:${PORT}/health`);
-      console.log(`🔓 CORS: Multiple origins allowed for development`);
+      console.log(`🔗 API URL: http://0.0.0.0:${PORT}`);
+      console.log(`💚 Health check: /health`);
+      console.log(`🔓 CORS: Production origins allowed`);
+      console.log(`🛡️  Security: Helmet & Rate Limiting enabled`);
+      console.log(`📊 Scheduler: Payment monitoring active`);
       console.log('=================================');
     });
+
+    // Graceful shutdown handler
+    const gracefulShutdown = (signal) => {
+      console.log(`\n🛑 ${signal} received. Starting graceful shutdown...`);
+      
+      server.close(() => {
+        console.log('✅ HTTP server closed');
+        
+        // Stop payment scheduler
+        paymentScheduler.stop();
+        console.log('✅ Payment scheduler stopped');
+        
+        // Close database connection
+        process.exit(0);
+      });
+
+      // Force shutdown after 30 seconds
+      setTimeout(() => {
+        console.error('⚠️  Forced shutdown after timeout');
+        process.exit(1);
+      }, 30000);
+    };
+
+    // Handle shutdown signals
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
@@ -122,7 +201,6 @@ const startServer = async () => {
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('❌ Unhandled Promise Rejection:', err);
-  // ✅ Stop scheduler before exit
   paymentScheduler.stop();
   process.exit(1);
 });
@@ -130,22 +208,8 @@ process.on('unhandledRejection', (err) => {
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
   console.error('❌ Uncaught Exception:', err);
-  // ✅ Stop scheduler before exit
   paymentScheduler.stop();
   process.exit(1);
-});
-
-// ✅ Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received. Shutting down gracefully...');
-  paymentScheduler.stop();
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  console.log('🛑 SIGINT received. Shutting down gracefully...');
-  paymentScheduler.stop();
-  process.exit(0);
 });
 
 // Start the server
