@@ -122,15 +122,88 @@ app.get('/', (req, res) => {
     health: '/health'
   });
 });
-app.get('/api/test-routes', (req, res) => {
-  res.json({ 
-    message: 'Routes test endpoint working!',
-    timestamp: new Date().toISOString(),
-    subscriptionRoutesLoaded: !!subscriptionRoutes
-  });
-});
+// 🌱 SEED ENDPOINT - ADMIN ONLY (Remove after seeding!)
+app.post('/api/admin/seed-subscriptions', async (req, res) => {
+  try {
+    const { Subscription } = require('./models');
+    const { SUBSCRIPTION_TYPES } = require('./utils/constants');
 
-app.use('/api/subscriptions', subscriptionRoutes);
+    const subscriptionPlans = [
+      {
+        type: SUBSCRIPTION_TYPES.SINGLE_EXAM,
+        name: { rw: 'Ikizamini kimwe', en: '1 Exam', fr: '1 Examen' },
+        description: { rw: 'Ikizamini kimwe', en: 'Single exam attempt', fr: 'Une tentative d\'examen' },
+        pricing: { rw: 100, en: 200, fr: 200 },
+        currency: 'RWF',
+        examLimit: 1,
+        durationDays: null,
+        isActive: true,
+        features: { examAttempts: 1 }
+      },
+      {
+        type: SUBSCRIPTION_TYPES.FIVE_EXAMS,
+        name: { rw: 'Ibizamini 5', en: '5 Exams', fr: '5 Examens' },
+        description: { rw: 'Ibizamini bitanu', en: 'Five exam attempts', fr: 'Cinq tentatives d\'examen' },
+        pricing: { rw: 500, en: 800, fr: 800 },
+        currency: 'RWF',
+        examLimit: 5,
+        durationDays: null,
+        isActive: true,
+        features: { examAttempts: 5 }
+      },
+      {
+        type: SUBSCRIPTION_TYPES.SEVEN_DAYS,
+        name: { rw: 'Iminsi 7 bidashira', en: '7 Days Unlimited', fr: '7 Jours Illimité' },
+        description: { rw: 'Ibizamini bidashira mu minsi 7', en: 'Unlimited exams for 7 days', fr: 'Examens illimités pendant 7 jours' },
+        pricing: { rw: 2500, en: 3000, fr: 3000 },
+        currency: 'RWF',
+        examLimit: null,
+        durationDays: 7,
+        isActive: true,
+        features: { examAttempts: 0 }
+      },
+      {
+        type: SUBSCRIPTION_TYPES.FIFTEEN_DAYS,
+        name: { rw: 'Iminsi 15 bidashira', en: '15 Days Unlimited', fr: '15 Jours Illimité' },
+        description: { rw: 'Ibizamini bidashira mu minsi 15', en: 'Unlimited exams for 15 days', fr: 'Examens illimités pendant 15 jours' },
+        pricing: { rw: 4500, en: 5000, fr: 5000 },
+        currency: 'RWF',
+        examLimit: null,
+        durationDays: 15,
+        isActive: true,
+        features: { examAttempts: 0 }
+      },
+      {
+        type: SUBSCRIPTION_TYPES.THIRTY_DAYS,
+        name: { rw: 'Ukwezi kumwe bidashira', en: '30 Days Unlimited', fr: '30 Jours Illimité' },
+        description: { rw: 'Ibizamini bidashira mu kwezi kumwe', en: 'Unlimited exams for 30 days', fr: 'Examens illimités pendant 30 jours' },
+        pricing: { rw: 7000, en: 8000, fr: 8000 },
+        currency: 'RWF',
+        examLimit: null,
+        durationDays: 30,
+        isActive: true,
+        features: { examAttempts: 0 }
+      }
+    ];
+
+    // Clear existing
+    await Subscription.deleteMany({});
+    
+    // Insert new
+    const result = await Subscription.insertMany(subscriptionPlans);
+
+    res.json({
+      success: true,
+      message: `Seeded ${result.length} subscription plans`,
+      plans: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
