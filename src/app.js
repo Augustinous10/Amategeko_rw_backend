@@ -127,6 +127,15 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
+
+// 🔍 TEST: Check subscription routes
+app.get('/api/test-subscription-routes', (req, res) => {
+  res.json({
+    message: 'Subscription routes test',
+    routesRegistered: true,
+    timestamp: new Date().toISOString()
+  });
+});
 app.use('/api/products', digitalProductRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/exams', examRoutes);
