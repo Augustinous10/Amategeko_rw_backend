@@ -122,20 +122,19 @@ app.get('/', (req, res) => {
     health: '/health'
   });
 });
+app.get('/api/test-routes', (req, res) => {
+  res.json({ 
+    message: 'Routes test endpoint working!',
+    timestamp: new Date().toISOString(),
+    subscriptionRoutesLoaded: !!subscriptionRoutes
+  });
+});
 
+app.use('/api/subscriptions', subscriptionRoutes);
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
-
-// 🔍 TEST: Check subscription routes
-app.get('/api/test-subscription-routes', (req, res) => {
-  res.json({
-    message: 'Subscription routes test',
-    routesRegistered: true,
-    timestamp: new Date().toISOString()
-  });
-});
 app.use('/api/products', digitalProductRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/exams', examRoutes);
