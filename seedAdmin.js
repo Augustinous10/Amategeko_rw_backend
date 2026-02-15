@@ -5,28 +5,32 @@ const User = require('./src/models/User');
 const createAdminUser = async () => {
   try {
     // Get MongoDB URI from environment variable
-    const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/amategeko_rw';
+    const MONGO_URI = process.env.MONGODB_URI;
     
     if (!MONGO_URI) {
       console.error('❌ Error: MONGODB_URI is not defined in .env file');
       process.exit(1);
     }
 
-    console.log('🔄 Connecting to MongoDB...');
+    console.log('🔄 Connecting to MongoDB Atlas...');
     
     // Connect to MongoDB
     await mongoose.connect(MONGO_URI);
 
-    console.log('✅ MongoDB Connected...');
+    console.log('✅ MongoDB Connected!');
+
+    // Admin credentials
+    const adminPhone = '0781345944';
+    const adminPassword = '0781345944';
 
     // Check if admin already exists
-    const existingAdmin = await User.findOne({ phone: '0781345944' });
+    const existingAdmin = await User.findOne({ phone: adminPhone });
     
     if (existingAdmin) {
-      console.log('⚠️  Admin user already exists!');
+      console.log('⚠️  User with this phone number already exists!');
       console.log('📱 Phone:', existingAdmin.phone);
       console.log('👤 Name:', existingAdmin.fullName);
-      console.log('🔑 Role:', existingAdmin.role);
+      console.log('🔑 Current Role:', existingAdmin.role);
       
       // Update to admin if not already
       if (existingAdmin.role !== 'admin') {
@@ -34,6 +38,8 @@ const createAdminUser = async () => {
         existingAdmin.isActive = true;
         await existingAdmin.save();
         console.log('✅ User role updated to admin!');
+      } else {
+        console.log('✅ User is already an admin!');
       }
       
       await mongoose.connection.close();
@@ -45,8 +51,8 @@ const createAdminUser = async () => {
     // Create new admin user
     const adminUser = await User.create({
       fullName: 'System Administrator',
-      phone: '0781345944',
-      password: '0781345944', // Will be hashed by User model pre-save hook
+      phone: adminPhone,
+      password: adminPassword, // Will be hashed by User model pre-save hook
       role: 'admin',
       isActive: true,
       preferredLanguage: 'rw'
@@ -58,9 +64,10 @@ const createAdminUser = async () => {
     console.log('🔒 Password: 0781345944');
     console.log('👤 Full Name: System Administrator');
     console.log('🔑 Role: admin');
+    console.log('🌐 Language: Kinyarwanda');
     console.log('=========================================');
     console.log('🚀 You can now login with these credentials');
-    console.log('⚠️  Please change the password after first login!');
+    console.log('⚠️  IMPORTANT: Change the password after first login!');
 
     // Close connection
     await mongoose.connection.close();
