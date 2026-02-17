@@ -440,6 +440,8 @@ const updateQuestion = async (req, res, next) => {
     if (explanation !== undefined) question.explanation = explanation;
     if (tags && Array.isArray(tags)) question.tags = tags;
 
+   question.markModified('question');
+    question.markModified('options');
     await question.save();
 
     res.status(200).json({
